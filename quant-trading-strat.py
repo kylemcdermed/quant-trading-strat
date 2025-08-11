@@ -16,7 +16,10 @@ import math
 from models.dnn_model import SimpleDNN
 from indicators.market_structure import OpenRangeGap, FairValueGap, DetectFVG, CalculateORGLevels  
 from utils.helpers import StoreMinuteBar, IsMarketSession, CheckORGDirection, GetFirstFVG, GetORGTarget
-from trading.entry_logic import HandleConflictingSignals, HandleAlignedSignals
+from trading.conflicting_signals import HandleConflictingSignals
+from trading.aligned_signals import HandleAlignedSignals
+from trading.entry_logic import GetFVGStopLoss, GetFVGStopLossLevels
+
 
 
 class NQTradingStrategy(QCAlgorithm):
@@ -98,7 +101,21 @@ class NQTradingStrategy(QCAlgorithm):
         
         # Detect FVG on new minute bars
         if IsMarketSession(current_time, self.market_open_time, self.market_close_time):
-            DetectFVG(self.minute_bars, self.session_started, self.first_fvg_detected, self.current_fvg, self.daily_fvgs, self.debug)
+            detected_fvg = DetectFVG(self.minute_bars, self.session_started, self.first_fvg_detected, self.current_fvg, self.daily_fvgs, self.debug)
+            
+            # If FVG was detected and it's the first one of the day
+            if detected_fvg is not None:
+                # Check if this is the first FVG of the day
+                if self.session_started and not self.first_fvg_detected:
+                    detected_fvg.is_first_of_day = True
+                    self.first_fvg_detected = True
+                    self.current_fvg = detected_fvg
+                    self.debug(f"First {'Bullish' if detected_fvg.is_bullish else 'Bearish'} FVG detected: {detected_fvg.low:.2f} - {detected_fvg.high:.2f} at {detected_fvg.time}")
+                    
+                    # **TRIGGER TRADING LOGIC** when first FVG is detected
+                    if not self.trade_taken_today:
+                        self.debug("Triggering trading logic for first FVG...")
+                        self.TradingLogic()
 
 
     def CaptureOpeningRange(self):
