@@ -189,37 +189,31 @@ class NQTradingStrategy(QCAlgorithm):
             # STEP 3: EVALUATE TRADING CONDITIONS
             # ═══════════════════════════════════════════════════════════════
             
+            # use these for all conditions 
+            first_fvg = GetFirstFVG(self.current_fvg)
+            org_target = GetORGTarget(self.current_org)
+
             # CONDITION 1: DNN BULLISH (+1) + ORG BEARISH (-1) = CONFLICTING SIGNALS
             if dnn_bias == 1 and org_direction == -1:
                 self.debug("CONFLICT: DNN Bullish vs ORG Bearish")
-                self.debug("Strategy: Use momentum-based entry within 1st FVG")
-                self.debug("Target: 50% ORG level")
                 # TODO: Implement momentum entry logic with FVG
-                first_fvg = GetFirstFVG(self.current_fvg)
-                org_target = GetORGTarget(self.current_org)
                 HandleConflictingSignals(self, direction=1, entry_type="1FVG", first_fvg=first_fvg, org_target=org_target)
 
             # CONDITION 2: DNN BEARISH (-1) + ORG BULLISH (+1) = CONFLICTING SIGNALS  
             elif dnn_bias == -1 and org_direction == 1:
                 self.debug("CONFLICT: DNN Bearish vs ORG Bullish")
-                self.debug("Strategy: Use momentum-based entry within 1st FVG")
-                self.debug("Target: 50% ORG level")
                 # TODO: Implement momentum entry logic with FVG
                 HandleConflictingSignals(self, direction=-1, entry_type="1FVG", first_fvg=first_fvg, org_target=org_target)
 
             # CONDITION 3: DNN BULLISH (+1) + ORG BULLISH (+1) = ALIGNED BULLISH
             elif dnn_bias == 1 and org_direction == 1:
                 self.debug("ALIGNED BULLISH: DNN Bullish + ORG Bullish")
-                self.debug("Strategy: Standard FVG entry (both signals agree)")
-                self.debug("Target: 50% ORG level")
                 # TODO: Implement standard FVG entry logic
                 HandleConflictingSignals(self, direction=1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
 
             # CONDITION 4: DNN BEARISH (-1) + ORG BEARISH (-1) = ALIGNED BEARISH
             elif dnn_bias == -1 and org_direction == -1:
                 self.debug("ALIGNED BEARISH: DNN Bearish + ORG Bearish") 
-                self.debug("Strategy: Standard FVG entry (both signals agree)")
-                self.debug("Target: 50% ORG level")
                 # TODO: Implement standard FVG entry logic
                 HandleConflictingSignals(self, direction=-1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
 
