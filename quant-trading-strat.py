@@ -180,7 +180,7 @@ class NQTradingStrategy(QCAlgorithm):
                 # TODO: Implement momentum entry logic with FVG
                 first_fvg = GetFirstFVG(self.current_fvg)
                 org_target = GetORGTarget(self.current_org)
-                HandleConflictingSignals(self, direction=1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
+                HandleConflictingSignals(self, direction=1, entry_type="1FVG", first_fvg=first_fvg, org_target=org_target)
 
             # CONDITION 2: DNN BEARISH (-1) + ORG BULLISH (+1) = CONFLICTING SIGNALS  
             elif dnn_bias == -1 and org_direction == 1:
@@ -188,8 +188,8 @@ class NQTradingStrategy(QCAlgorithm):
                 self.debug("Strategy: Use momentum-based entry within 1st FVG")
                 self.debug("Target: 50% ORG level")
                 # TODO: Implement momentum entry logic with FVG
-                HandleConflictingSignals(direction=-1, entry_type="momentum")
-                
+                HandleConflictingSignals(self, direction=-1, entry_type="1FVG", first_fvg=first_fvg, org_target=org_target)
+
             # CONDITION 3: DNN BULLISH (+1) + ORG BULLISH (+1) = ALIGNED BULLISH
             elif dnn_bias == 1 and org_direction == 1:
                 self.debug("ALIGNED BULLISH: DNN Bullish + ORG Bullish")
