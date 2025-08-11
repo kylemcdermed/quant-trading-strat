@@ -88,6 +88,7 @@ class NQTradingStrategy(QCAlgorithm):
         self.daily_fvgs = []
         self.first_fvg_detected = False
         self.session_started = False
+        self.trade_taken_today = False
         
         # Market session times (Eastern Time)
         self.market_open_time = time(9, 30)
@@ -146,6 +147,7 @@ class NQTradingStrategy(QCAlgorithm):
                 self.session_started = True
                 self.first_fvg_detected = False
                 self.daily_fvgs = []  # Reset daily FVGs
+                self.trade_taken_today = False  # Reset daily
                 
                 self.debug(f"ORG Open captured: {self.current_org.open_price} at {self.current_org.open_time}")
         except Exception as e:
@@ -413,6 +415,145 @@ class NQTradingStrategy(QCAlgorithm):
         except Exception as e:
             self.debug(f"Error calculating Kelly position size: {e}")
             return 0
+
+
+
+    def TradingLogic(self):
+        """
+        Main trading logic that evaluates DNN vs ORG conditions for entry
+        
+        This function is called after market open (9:30 AM) when we have:
+        - DNN daily bias prediction (+1 bullish, -1 bearish)
+        - ORG direction from overnight gap (+1 gap up, -1 gap down)
+        
+        Entry conditions based on DNN vs ORG alignment:
+        1. Conflicting signals (DNN bullish + ORG bearish, or DNN bearish + ORG bullish)
+        2. Aligned signals (DNN bullish + ORG bullish, or DNN bearish + ORG bearish)
+        """
+        try:
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 1: CHECK IF WE'VE ALREADY TRADED TODAY
+            # ═══════════════════════════════════════════════════════════════
+            if self.trade_taken_today:
+                self.debug("Trade already taken today - no more entries allowed")
+                return
+            
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 2: GET DNN PREDICTION AND ORG DIRECTION
+            # ═══════════════════════════════════════════════════════════════
+            dnn_bias = self.bias  # +1 bullish, -1 bearish from DNN daily prediction
+            org_direction = self.CheckORGDirection()  # +1 gap up, -1 gap down
+            
+            # Validate we have both signals
+            if dnn_bias == 0 or org_direction == 0:
+                self.debug("Missing DNN bias or ORG direction - skipping trade logic")
+                return
+            
+            self.debug(f"Trading Logic - DNN Bias: {dnn_bias}, ORG Direction: {org_direction}")
+            
+            # ═══════════════════════════════════════════════════════════════
+            # STEP 3: EVALUATE TRADING CONDITIONS
+            # ═══════════════════════════════════════════════════════════════
+            
+            # CONDITION 1: DNN BULLISH (+1) + ORG BEARISH (-1) = CONFLICTING SIGNALS
+            if dnn_bias == 1 and org_direction == -1:
+                self.Debug("CONFLICT: DNN Bullish vs ORG Bearish")
+                self.Debug("Strategy: Use momentum-based entry within 1st FVG")
+                self.Debug("Target: 50% ORG level")
+                # TODO: Implement momentum entry logic with FVG
+                self.HandleConflictingSignals(direction=1, entry_type="momentum")
+                
+            # CONDITION 2: DNN BEARISH (-1) + ORG BULLISH (+1) = CONFLICTING SIGNALS  
+            elif dnn_bias == -1 and org_direction == 1:
+                self.Debug("CONFLICT: DNN Bearish vs ORG Bullish")
+                self.Debug("Strategy: Use momentum-based entry within 1st FVG")
+                self.Debug("Target: 50% ORG level")
+                # TODO: Implement momentum entry logic with FVG
+                self.HandleConflictingSignals(direction=-1, entry_type="momentum")
+                
+            # CONDITION 3: DNN BULLISH (+1) + ORG BULLISH (+1) = ALIGNED BULLISH
+            elif dnn_bias == 1 and org_direction == 1:
+                self.Debug("ALIGNED BULLISH: DNN Bullish + ORG Bullish")
+                self.Debug("Strategy: Standard FVG entry (both signals agree)")
+                self.Debug("Target: 50% ORG level")
+                # TODO: Implement standard FVG entry logic
+                self.HandleAlignedSignals(direction=1, entry_type="standard")
+                
+            # CONDITION 4: DNN BEARISH (-1) + ORG BEARISH (-1) = ALIGNED BEARISH
+            elif dnn_bias == -1 and org_direction == -1:
+                self.Debug("ALIGNED BEARISH: DNN Bearish + ORG Bearish") 
+                self.Debug("Strategy: Standard FVG entry (both signals agree)")
+                self.Debug("Target: 50% ORG level")
+                # TODO: Implement standard FVG entry logic
+                self.HandleAlignedSignals(direction=-1, entry_type="standard")
+                
+            else:
+                self.Debug("Unexpected condition - no trading logic triggered")
+                
+        except Exception as e:
+            self.Debug(f"Error in TradingLogic: {e}")
+
+    def HandleConflictingSignals(self, direction, entry_type):
+        """
+        Handle conflicting DNN vs ORG signals
+        
+        Args:
+            direction: +1 for bullish bias, -1 for bearish bias (from DNN)
+            entry_type: "momentum" for momentum-based entry
+        """
+        self.Debug(f"Handling conflicting signals - Direction: {direction}, Type: {entry_type}")
+        
+        # Get first FVG for entry timing
+        first_fvg = self.GetFirstFVG()
+        org_target = self.GetORGTarget()
+        
+        if first_fvg is None:
+            self.Debug("Waiting for first FVG to develop...")
+            return
+            
+        if org_target is None:
+            self.Debug("No valid ORG target available")
+            return
+            
+        self.Debug(f"First FVG: {first_fvg.low:.2f} - {first_fvg.high:.2f}")
+        self.Debug(f"ORG Target (50%): {org_target:.2f}")
+        
+        # TODO: Implement momentum-based entry within FVG
+        # - Wait for price to enter FVG zone
+        # - Look for momentum confirmation
+        # - Enter with Kelly position sizing
+        # - Target 50% ORG level
+        
+    def HandleAlignedSignals(self, direction, entry_type):
+        """
+        Handle aligned DNN and ORG signals
+        
+        Args:
+            direction: +1 for bullish, -1 for bearish (both DNN and ORG agree)
+            entry_type: "standard" for standard FVG entry
+        """
+        self.Debug(f"Handling aligned signals - Direction: {direction}, Type: {entry_type}")
+        
+        # Get first FVG for entry timing
+        first_fvg = self.GetFirstFVG()
+        org_target = self.GetORGTarget()
+        
+        if first_fvg is None:
+            self.Debug("Waiting for first FVG to develop...")
+            return
+            
+        if org_target is None:
+            self.Debug("No valid ORG target available")
+            return
+            
+        self.Debug(f"First FVG: {first_fvg.low:.2f} - {first_fvg.high:.2f}")
+        self.Debug(f"ORG Target (50%): {org_target:.2f}")
+        
+        # TODO: Implement standard FVG entry
+        # - Wait for price to enter FVG zone
+        # - Enter immediately when FVG is hit
+        # - Enter with Kelly position sizing  
+        # - Target 50% ORG level
 
 
 
