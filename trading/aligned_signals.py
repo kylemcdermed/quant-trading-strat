@@ -91,7 +91,18 @@ def HandleAlignedSignals(algorithm_instance, direction, entry_type, first_fvg, o
                 
                 algorithm_instance.debug(f"MOMENTUM SHORT SETUP - Entry: {entry_price:.2f}, Stop: {stop_loss:.2f}, Target: {take_profit:.2f}")
                 algorithm_instance.debug("NOTE: Momentum short trade with 50 point profit target")
-                # TODO: Execute SELL limit order logic here
+                
+                # EXECUTE SELL LIMIT ORDER (MOMENTUM SHORT)
+                quantity = 1  # For NQ futures, typically 1 contract
+                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq, -quantity, entry_price)
+                algorithm_instance.debug(f"SELL LIMIT order placed: {quantity} contracts at {entry_price}")
+                
+                # Set stop loss and take profit for SHORT
+                if order_ticket:
+                    algorithm_instance.StopMarketOrder(algorithm_instance.nq, quantity, stop_loss)
+                    algorithm_instance.LimitOrder(algorithm_instance.nq, quantity, take_profit)
+                    algorithm_instance.debug(f"Stop Loss set at {stop_loss}, Take Profit at {take_profit}")
+                    algorithm_instance.trade_taken_today = True
                 
             else:
                 algorithm_instance.debug(f"NO MOMENTUM SHORT: Current close {current_price:.2f} <= Candle 3 High {candle3_high:.2f}")
@@ -121,7 +132,18 @@ def HandleAlignedSignals(algorithm_instance, direction, entry_type, first_fvg, o
                 
                 algorithm_instance.debug(f"MOMENTUM LONG SETUP - Entry: {entry_price:.2f}, Stop: {stop_loss:.2f}, Target: {take_profit:.2f}")
                 algorithm_instance.debug("NOTE: Momentum long trade with 50 point profit target")
-                # TODO: Execute BUY limit order logic here
+                
+                # EXECUTE BUY LIMIT ORDER (MOMENTUM LONG)
+                quantity = 1  # For NQ futures, typically 1 contract
+                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq, quantity, entry_price)
+                algorithm_instance.debug(f"BUY LIMIT order placed: {quantity} contracts at {entry_price}")
+                
+                # Set stop loss and take profit for LONG
+                if order_ticket:
+                    algorithm_instance.StopMarketOrder(algorithm_instance.nq, -quantity, stop_loss)
+                    algorithm_instance.LimitOrder(algorithm_instance.nq, -quantity, take_profit)
+                    algorithm_instance.debug(f"Stop Loss set at {stop_loss}, Take Profit at {take_profit}")
+                    algorithm_instance.trade_taken_today = True
                 
             else:
                 algorithm_instance.debug(f"NO MOMENTUM LONG: Current close {current_price:.2f} <= Candle 1 Low {candle1_low:.2f}")
@@ -165,7 +187,7 @@ def HandleAlignedSignals(algorithm_instance, direction, entry_type, first_fvg, o
         current_price = current_candle['close']  # Use candle close, not live price
         
         # ═══════════════════════════════════════════════════════════════════════════════
-        # CASE 4A: BEARISH FVG + ALIGNED BEARISH SIGNALS - MOMENTUM SHORT CONTINUATION
+        # CASE 1: BEARISH FVG + ALIGNED BEARISH SIGNALS - MOMENTUM SHORT CONTINUATION
         # Entry: Wait for price to close BELOW candle 1 high (showing momentum continuation)
         # Logic: All signals bearish (DNN + ORG + FVG), enter short on momentum breakdown
         # Trade: SELL LIMIT at candle 1 high with 50 point profit target
@@ -189,13 +211,24 @@ def HandleAlignedSignals(algorithm_instance, direction, entry_type, first_fvg, o
                 
                 algorithm_instance.debug(f"MOMENTUM SHORT SETUP - Entry: {entry_price:.2f}, Stop: {stop_loss:.2f}, Target: {take_profit:.2f}")
                 algorithm_instance.debug("NOTE: Bearish momentum continuation trade with 50 point profit target")
-                # TODO: Execute SELL limit order logic here
+                
+                # EXECUTE SELL LIMIT ORDER (MOMENTUM SHORT CONTINUATION)
+                quantity = 1  # For NQ futures, typically 1 contract
+                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq, -quantity, entry_price)
+                algorithm_instance.debug(f"SELL LIMIT order placed: {quantity} contracts at {entry_price}")
+                
+                # Set stop loss and take profit for SHORT
+                if order_ticket:
+                    algorithm_instance.StopMarketOrder(algorithm_instance.nq, quantity, stop_loss)
+                    algorithm_instance.LimitOrder(algorithm_instance.nq, quantity, take_profit)
+                    algorithm_instance.debug(f"Stop Loss set at {stop_loss}, Take Profit at {take_profit}")
+                    algorithm_instance.trade_taken_today = True
                 
             else:
                 algorithm_instance.debug(f"NO MOMENTUM SHORT: Current close {current_price:.2f} >= Candle 1 High {candle1_high:.2f}")
         
         # ═══════════════════════════════════════════════════════════════════════════════
-        # CASE 4B: BULLISH FVG + ALIGNED BEARISH SIGNALS - MOMENTUM SHORT REVERSAL
+        # CASE 2: BULLISH FVG + ALIGNED BEARISH SIGNALS - MOMENTUM SHORT REVERSAL
         # Entry: Wait for price to close BELOW candle 3 high (showing momentum reversal)
         # Logic: Despite bullish FVG, aligned bearish signals call for short on reversal
         # Trade: SELL LIMIT at candle 3 high with 50 point profit target
@@ -219,7 +252,18 @@ def HandleAlignedSignals(algorithm_instance, direction, entry_type, first_fvg, o
                 
                 algorithm_instance.debug(f"MOMENTUM SHORT SETUP - Entry: {entry_price:.2f}, Stop: {stop_loss:.2f}, Target: {take_profit:.2f}")
                 algorithm_instance.debug("NOTE: Bearish momentum reversal trade with 50 point profit target")
-                # TODO: Execute SELL limit order logic here
+                
+                # EXECUTE SELL LIMIT ORDER (MOMENTUM SHORT REVERSAL)
+                quantity = 1  # For NQ futures, typically 1 contract
+                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq, -quantity, entry_price)
+                algorithm_instance.debug(f"SELL LIMIT order placed: {quantity} contracts at {entry_price}")
+                
+                # Set stop loss and take profit for SHORT
+                if order_ticket:
+                    algorithm_instance.StopMarketOrder(algorithm_instance.nq, quantity, stop_loss)
+                    algorithm_instance.LimitOrder(algorithm_instance.nq, quantity, take_profit)
+                    algorithm_instance.debug(f"Stop Loss set at {stop_loss}, Take Profit at {take_profit}")
+                    algorithm_instance.trade_taken_today = True
                 
             else:
                 algorithm_instance.debug(f"NO MOMENTUM SHORT: Current close {current_price:.2f} >= Candle 3 High {candle3_high:.2f}")
