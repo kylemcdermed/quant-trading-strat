@@ -1,3 +1,6 @@
+# region imports
+from AlgorithmImports import *
+# endregion
 from QuantConnect import *
 from QuantConnect.Algorithm import *
 from QuantConnect.Data.Market import *
@@ -45,36 +48,116 @@ class NQTradingStrategy(QCAlgorithm):
         self.debug(f"Price: {price}")
 
     def DailyBiasAndRebalance(self):
-        history = self.History(self.nq.mapped, 31, Resolution.DAILY)
-        if history is None or len(history) == 0:
-            return
+        try:
+            # Get history - returns pandas DataFrame
+            history = self.history([self.nq.Symbol], 31, Resolution.DAILY)
+            
+            if history.empty:
+                self.debug("History is empty")
+                return
 
-        closes = history.close.unstack(level=0)
-        returns = closes.pct_change().dropna().values[-30:]
-        features = torch.tensor(returns, dtype=torch.float32).unsqueeze(0).to(self.device)
+            # Debug the DataFrame structure
+            self.debug(f"History shape: {history.shape}")
+            self.debug(f"History columns: {list(history.columns)}")
+            self.debug(f"History index levels: {history.index.names}")
+            
+            # Extract close prices - try multiple approaches
+            closes = []
+            
+            # Method 1: Try direct column access if single symbol
+            if 'close' in history.columns:
+                closes = history['close'].dropna().values
+            elif 'Close' in history.columns:
+                closes = history['Close'].dropna().values
+            else:
+                # Method 2: Multi-index DataFrame - get symbol data
+                try:
+                    # Try different symbol representations
+                    for symbol_key in [self.nq.Symbol, str(self.nq.Symbol), self.nq.Symbol.Value]:
+                        try:
+                            symbol_data = history.loc[symbol_key]
+                            if 'close' in symbol_data.columns:
+                                closes = symbol_data['close'].dropna().values
+                                break
+                            elif 'Close' in symbol_data.columns:
+                                closes = symbol_data['Close'].dropna().values
+                                break
+                        except:
+                            continue
+                            
+                    # Method 3: If still no data, try xs method
+                    if len(closes) == 0:
+                        symbol_data = history.xs(self.nq.Symbol, level=0)
+                        if 'close' in symbol_data.columns:
+                            closes = symbol_data['close'].dropna().values
+                        elif 'Close' in symbol_data.columns:
+                            closes = symbol_data['Close'].dropna().values
+                            
+                except Exception as e:
+                    self.debug(f"Error accessing symbol data: {e}")
+                    return
+            
+            if len(closes) < 30:
+                self.debug(f"Insufficient price data: {len(closes)} bars")
+                return
+            
+            # Calculate returns using numpy
+            closes_array = np.array(closes, dtype=float)
+            returns = np.diff(closes_array) / closes_array[:-1]
+            
+            # Get last 30 returns for DNN
+            if len(returns) < 30:
+                self.debug(f"Insufficient returns data: {len(returns)} returns")
+                return
+                
+            recent_returns = returns[-30:]
+            features = torch.tensor(recent_returns, dtype=torch.float32).unsqueeze(0).to(self.device)
 
-        self.model.eval()
-        with torch.no_grad():
-            output = self.model(features)
-            self.bias = 1 if output.item() > 0 else -1
+            # DNN inference
+            self.model.eval()
+            with torch.no_grad():
+                output = self.model(features)
+                self.bias = 1 if output.item() > 0 else -1
+                self.debug(f"DNN bias: {self.bias}, output: {output.item():.4f}")
 
-        vol_returns = closes.pct_change().dropna().values.flatten()[-self.vol_window:]
-        self.recent_vol = float(np.std(vol_returns) * math.sqrt(252))
+            # Calculate volatility from returns array
+            if len(returns) >= self.vol_window:
+                vol_returns = returns[-self.vol_window:]
+                self.recent_vol = float(np.std(vol_returns) * math.sqrt(252))
+            else:
+                self.debug("Insufficient data for volatility calculation")
+                return
 
-        if self.recent_vol == 0:
-            return
+            if self.recent_vol == 0:
+                self.debug("Zero volatility - skipping rebalance")
+                return
 
-        capital = self.Portfolio.TotalPortfolioValue  # type: ignore
-        target_exposure = (self.target_vol / self.recent_vol) * capital
+            # Position sizing
+            capital = self.portfolio.total_portfolio_value
+            target_exposure = (self.target_vol / self.recent_vol) * capital
 
-        current_price = self.Securities[self.nq.Mapped].Price  # type: ignore
-        contract_value = current_price * self.contract_multiplier
-        target_contracts = int(target_exposure / contract_value) * self.bias
+            # Get current price
+            current_price = self.securities[self.nq.Mapped].price
+            contract_value = current_price * self.contract_multiplier
 
-        current_quantity = self.Portfolio[self.nq.Mapped].Quantity  # type: ignore
-        if target_contracts != current_quantity:
-            self.MarketOrder(self.nq.Mapped, target_contracts - current_quantity)  # type: ignore
+            if contract_value == 0:
+                self.debug("Contract value is zero — skipping rebalance")
+                return
 
+            target_contracts = int(target_exposure / contract_value) * self.bias
+
+            # Execute rebalancing
+            current_quantity = self.portfolio[self.nq.Mapped].quantity
+            if target_contracts != current_quantity:
+                order_quantity = target_contracts - current_quantity
+                self.market_order(self.nq.Mapped, order_quantity)
+                self.debug(f"Rebalanced: {current_quantity} -> {target_contracts} contracts (order: {order_quantity})")
+            else:
+                self.debug(f"No rebalancing needed. Current: {current_quantity}, Target: {target_contracts}")
+                
+        except Exception as e:
+            self.debug(f"Error in DailyBiasAndRebalance: {str(e)}")
+            
 class SimpleDNN(nn.Module):
     def __init__(self, input_size):
         super(SimpleDNN, self).__init__()
