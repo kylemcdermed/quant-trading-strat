@@ -9,8 +9,32 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from datetime import timedelta
+from datetime import timedelta, time
 import math
+
+class OpenRangeGap:
+    def __init__(self):
+        self.open_price = None
+        self.close_price = None
+        self.open_time = None
+        self.close_time = None
+        self.is_valid = False
+        self.ce_price = None  # Consequent Encroachment (50% level)
+        self.q1_price = None  # 25% level
+        self.q3_price = None  # 75% level
+        self.size = 0
+        self.direction = 0  # 1 for bullish gap, -1 for bearish gap
+
+class FairValueGap:
+    def __init__(self):
+        self.high = None
+        self.low = None
+        self.time = None
+        self.is_bullish = False
+        self.ce_price = None  # Consequent Encroachment (50% level)
+        self.is_filled = False
+        self.is_first_of_day = False
+
 
 class NQTradingStrategy(QCAlgorithm):
     def Initialize(self):
@@ -28,24 +52,219 @@ class NQTradingStrategy(QCAlgorithm):
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
         self.criterion = nn.MSELoss()
 
+        # schedule daily DNN bias calculation
         self.schedule.on(
             self.date_rules.every_day(self.nq.Symbol),
             self.time_rules.at(0, 0),
             self.DailyBiasAndRebalance
         )
 
-        self.set_warm_up(30)
+        # schedule ORG detection at market open (9:30 AM ET)
+        self.schedule.on(
+            self.date_rules.every_day(self.nq.Symbol),
+            self.time_rules.at(9, 30),
+            self.DailyBiasAndRebalance
+        )
 
+        # Schedule ORG detection at market open (9:30 AM ET)
+        self.schedule.on(
+            self.date_rules.every_day(self.nq.Symbol),
+            self.time_rules.at(16, 14),
+            self.DailyBiasAndRebalance
+        )
+
+
+        self.set_warm_up(30) 
+
+        # DNN variables
         self.bias = 0
         self.vol_window = 20
         self.contract_multiplier = 20  
-        self.recent_vol = 0.0  
+        self.recent_vol = 0.0
+
+        # ORG and FVG variables
+        self.current_org = OpenRangeGap()
+        self.current_fvg = None
+        self.daily_fvgs = []
+        self.first_fvg_detected = False
+        self.session_started = False
+        
+        # Market session times (Eastern Time)
+        self.market_open_time = time(9, 30)
+        self.market_close_time = time(16, 14)
+        
+        # Store minute bars for FVG detection
+        self.minute_bars = []
+        self.max_minute_bars = 500  # Keep last 500 minute bars
+
 
     def OnData(self, data):
         if self.nq.Mapped not in data.Bars:
             return
-        price = data.Bars[self.nq.Mapped].Close
-        self.debug(f"Price: {price}")
+            
+        current_bar = data.Bars[self.nq.Mapped]
+        current_time = self.time
+        
+        # Store minute bar for FVG analysis
+        self.StoreMinuteBar(current_bar, current_time)
+        
+        # Detect FVG on new minute bars
+        if self.IsMarketSession(current_time):
+            self.DetectFVG()
+
+
+
+    def IsMarketSession(self, time_stamp):
+        """Check if current time is within market session (9:30 AM - 4:00 PM ET)"""
+        current_time = time_stamp.time()
+        return self.market_open_time <= current_time <= self.market_close_time
+
+    def StoreMinuteBar(self, bar, time_stamp):
+        """Store minute bars for FVG detection"""
+        bar_data = {
+            'time': time_stamp,
+            'open': float(bar.Open),
+            'high': float(bar.High),
+            'low': float(bar.Low),
+            'close': float(bar.Close),
+            'volume': int(bar.Volume)
+        }
+        
+        self.minute_bars.append(bar_data)
+        
+        # Keep only recent bars
+        if len(self.minute_bars) > self.max_minute_bars:
+            self.minute_bars.pop(0)
+
+    def CaptureOpeningRange(self):
+        """Capture the opening price for ORG calculation"""
+        try:
+            if self.nq.Mapped in self.securities:
+                current_price = self.securities[self.nq.Mapped].price
+                self.current_org.open_price = float(current_price)
+                self.current_org.open_time = self.time
+                self.session_started = True
+                self.first_fvg_detected = False
+                self.daily_fvgs = []  # Reset daily FVGs
+                
+                self.debug(f"ORG Open captured: {self.current_org.open_price} at {self.current_org.open_time}")
+        except Exception as e:
+            self.debug(f"Error capturing opening range: {e}")
+
+    def CaptureClosingPrice(self):
+        """Capture the closing price for ORG calculation"""
+        try:
+            if self.nq.Mapped in self.securities:
+                current_price = self.securities[self.nq.Mapped].Price
+                self.current_org.close_price = float(current_price)
+                self.current_org.close_time = self.time
+                
+                # Calculate ORG levels
+                self.CalculateORGLevels()
+                
+                self.debug(f"ORG Close captured: {self.current_org.close_price} at {self.current_org.close_time}")
+        except Exception as e:
+            self.debug(f"Error capturing closing price: {e}")
+
+    def CalculateORGLevels(self):
+        """Calculate ORG levels (CE, Q1, Q3) based on open and close"""
+        if self.current_org.open_price is None or self.current_org.close_price is None:
+            return
+            
+        try:
+            open_price = self.current_org.open_price
+            close_price = self.current_org.close_price
+            
+            # Calculate gap size and direction
+            self.current_org.size = abs(close_price - open_price)
+            self.current_org.direction = 1 if close_price > open_price else -1
+            
+            # Calculate key levels
+            gap_range = close_price - open_price
+            
+            # Consequent Encroachment (50% level)
+            self.current_org.ce_price = open_price + (gap_range * 0.5)
+            
+            # Quarter levels
+            self.current_org.q1_price = open_price + (gap_range * 0.25)
+            self.current_org.q3_price = open_price + (gap_range * 0.75)
+            
+            self.current_org.is_valid = True
+            
+            self.debug(f"ORG Levels - Open: {open_price:.2f}, Close: {close_price:.2f}")
+            self.debug(f"ORG Levels - CE: {self.current_org.ce_price:.2f}, Q1: {self.current_org.q1_price:.2f}, Q3: {self.current_org.q3_price:.2f}")
+            self.debug(f"ORG Size: {self.current_org.size:.2f}, Direction: {self.current_org.direction}")
+            
+        except Exception as e:
+            self.debug(f"Error calculating ORG levels: {e}")
+
+    def DetectFVG(self):
+        """Detect Fair Value Gaps using 3-candle pattern"""
+        if len(self.minute_bars) < 3:
+            return
+            
+        try:
+            # Get last 3 bars
+            bar1 = self.minute_bars[-3]  # 2 bars ago
+            bar2 = self.minute_bars[-2]  # 1 bar ago  
+            bar3 = self.minute_bars[-1]  # Current bar
+            
+            # Check for bullish FVG: bar1.low > bar3.high
+            if bar1['low'] > bar3['high']:
+                fvg = FairValueGap()
+                fvg.high = bar1['low']
+                fvg.low = bar3['high']
+                fvg.time = bar3['time']
+                fvg.is_bullish = True
+                fvg.ce_price = (fvg.high + fvg.low) / 2
+                
+                # Check if this is the first FVG of the day
+                if self.session_started and not self.first_fvg_detected:
+                    fvg.is_first_of_day = True
+                    self.first_fvg_detected = True
+                    self.current_fvg = fvg
+                    self.debug(f"First Bullish FVG detected: {fvg.low:.2f} - {fvg.high:.2f} at {fvg.time}")
+                
+                self.daily_fvgs.append(fvg)
+                
+            # Check for bearish FVG: bar1.high < bar3.low
+            elif bar1['high'] < bar3['low']:
+                fvg = FairValueGap()
+                fvg.high = bar3['low']
+                fvg.low = bar1['high']
+                fvg.time = bar3['time']
+                fvg.is_bullish = False
+                fvg.ce_price = (fvg.high + fvg.low) / 2
+                
+                # Check if this is the first FVG of the day
+                if self.session_started and not self.first_fvg_detected:
+                    fvg.is_first_of_day = True
+                    self.first_fvg_detected = True
+                    self.current_fvg = fvg
+                    self.debug(f"First Bearish FVG detected: {fvg.low:.2f} - {fvg.high:.2f} at {fvg.time}")
+                
+                self.daily_fvgs.append(fvg)
+                
+        except Exception as e:
+            self.debug(f"Error detecting FVG: {e}")
+
+    def GetORGTarget(self):
+        """Get 50% ORG target level"""
+        if self.current_org.is_valid:
+            return self.current_org.ce_price
+        return None
+
+    def GetFirstFVG(self):
+        """Get the first FVG of the day"""
+        return self.current_fvg
+
+    def CheckORGDirection(self):
+        """Get ORG directional bias"""
+        if self.current_org.is_valid:
+            return self.current_org.direction
+        return 0
+
+    
 
     def DailyBiasAndRebalance(self):
         try:
@@ -157,7 +376,7 @@ class NQTradingStrategy(QCAlgorithm):
                 
         except Exception as e:
             self.debug(f"Error in DailyBiasAndRebalance: {str(e)}")
-            
+
 class SimpleDNN(nn.Module):
     def __init__(self, input_size):
         super(SimpleDNN, self).__init__()
