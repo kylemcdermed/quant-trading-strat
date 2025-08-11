@@ -25,7 +25,7 @@ from trading.entry_logic import GetFVGStopLoss, GetFVGStopLossLevels
 class NQTradingStrategy(QCAlgorithm):
     def Initialize(self):
         self.set_start_date(2020, 1, 1)  
-        self.set_cash(100000)  
+        self.set_cash(10000000)  
         self.set_brokerage_model(BrokerageName.INTERACTIVE_BROKERS_BROKERAGE, AccountType.MARGIN)  
 
         self.nq = self.add_future(Futures.Indices.NASDAQ_100_E_MINI, Resolution.MINUTE)
@@ -44,25 +44,20 @@ class NQTradingStrategy(QCAlgorithm):
             self.time_rules.at(0, 0),
             self.CalculateDailyBias
         )
-        '''
-        # schedule ORG detection at market open (9:30 AM ET)
-        # do not use DNN to enter, only use in combination
-        # as daily bias with 1st FVG entry model
+        
+        # Capture opening price for ORG at market open (9:30 AM ET)
         self.schedule.on(
             self.date_rules.every_day(self.nq.Symbol),
             self.time_rules.at(9, 30),
-            self.CalculateDailyBias
+            self.CaptureOpeningRange
         )
 
-        # Schedule ORG detection at market open (9:30 AM ET)
-        # do not use DNN to enter, only use in combination
-        # as daily bias with 1st FVG entry model
+        # Capture closing price for ORG at market close (4:14 PM ET)
         self.schedule.on(
             self.date_rules.every_day(self.nq.Symbol),
             self.time_rules.at(16, 14),
-            self.CalculateDailyBias
+            self.CaptureClosingPrice
         )
-        '''
 
         self.set_warm_up(30) 
 
