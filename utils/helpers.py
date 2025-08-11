@@ -28,23 +28,21 @@ def StoreMinuteBar(bar, time_stamp, minute_bars, max_minute_bars):
 
 
 
+# ORG Functions
 def GetORGTarget(current_org):
-        """Get 50% ORG target level"""
-        if current_org.is_valid:
+    """Get 50% ORG target level"""
+    if hasattr(current_org, 'is_valid') and current_org.is_valid:
+        if hasattr(current_org, 'ce_price'):
             return current_org.ce_price
-        return None
-
-
+    return None
 
 def GetFirstFVG(current_fvg):
-        """Get the first FVG of the day"""
-        return current_fvg
-
-
-
+    """Get the first FVG of the day"""
+    return current_fvg
 
 def CheckORGDirection(current_org):
-        """Get ORG directional bias"""
-        if current_org.is_valid:
+    """Get ORG directional bias"""
+    if hasattr(current_org, 'is_valid') and current_org.is_valid:
+        if hasattr(current_org, 'direction'):
             return current_org.direction
-        return 0
+    return 0
