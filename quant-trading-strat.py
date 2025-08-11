@@ -196,16 +196,16 @@ class NQTradingStrategy(QCAlgorithm):
                 self.debug("Strategy: Standard FVG entry (both signals agree)")
                 self.debug("Target: 50% ORG level")
                 # TODO: Implement standard FVG entry logic
-                HandleAlignedSignals(direction=1, entry_type="standard")
-                
+                HandleConflictingSignals(self, direction=1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
+
             # CONDITION 4: DNN BEARISH (-1) + ORG BEARISH (-1) = ALIGNED BEARISH
             elif dnn_bias == -1 and org_direction == -1:
                 self.debug("ALIGNED BEARISH: DNN Bearish + ORG Bearish") 
                 self.debug("Strategy: Standard FVG entry (both signals agree)")
                 self.debug("Target: 50% ORG level")
                 # TODO: Implement standard FVG entry logic
-                HandleAlignedSignals(direction=-1, entry_type="standard")
-                
+                HandleConflictingSignals(self, direction=-1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
+
             else:
                 self.debug("Unexpected condition - no trading logic triggered")
                 
