@@ -63,51 +63,56 @@ def CalculateORGLevels(current_org, debug):
 
 
 def DetectFVG(minute_bars, session_started, first_fvg_detected, current_fvg, daily_fvgs, debug):
-        """Detect Fair Value Gaps using 3-candle pattern"""
-        if len(minute_bars) < 3:
-            return
+    """Detect Fair Value Gaps using 3-candle pattern"""
+    if len(minute_bars) < 3:
+        return None  # Just add return None
+        
+    try:
+        # Get last 3 bars
+        bar1 = minute_bars[-3]  # 2 bars ago
+        bar2 = minute_bars[-2]  # 1 bar ago  
+        bar3 = minute_bars[-1]  # Current bar
+        
+        # Check for bullish FVG: bar1.low > bar3.high
+        if bar1['low'] > bar3['high']:
+            fvg = FairValueGap()
+            fvg.high = bar1['low']
+            fvg.low = bar3['high']
+            fvg.time = bar3['time']
+            fvg.is_bullish = True
+            fvg.ce_price = (fvg.high + fvg.low) / 2
             
-        try:
-            # Get last 3 bars
-            bar1 = minute_bars[-3]  # 2 bars ago
-            bar2 = minute_bars[-2]  # 1 bar ago  
-            bar3 = minute_bars[-1]  # Current bar
+            # Check if this is the first FVG of the day
+            if session_started and not first_fvg_detected:
+                fvg.is_first_of_day = True
+                first_fvg_detected = True
+                current_fvg = fvg
+                debug(f"First Bullish FVG detected: {fvg.low:.2f} - {fvg.high:.2f} at {fvg.time}")
             
-            # Check for bullish FVG: bar1.low > bar3.high
-            if bar1['low'] > bar3['high']:
-                fvg = FairValueGap()
-                fvg.high = bar1['low']
-                fvg.low = bar3['high']
-                fvg.time = bar3['time']
-                fvg.is_bullish = True
-                fvg.ce_price = (fvg.high + fvg.low) / 2
-                
-                # Check if this is the first FVG of the day
-                if session_started and not first_fvg_detected:
-                    fvg.is_first_of_day = True
-                    first_fvg_detected = True
-                    current_fvg = fvg
-                    debug(f"First Bullish FVG detected: {fvg.low:.2f} - {fvg.high:.2f} at {fvg.time}")
-                
-                daily_fvgs.append(fvg)
-                
-            # Check for bearish FVG: bar1.high < bar3.low
-            elif bar1['high'] < bar3['low']:
-                fvg = FairValueGap()
-                fvg.high = bar3['low']
-                fvg.low = bar1['high']
-                fvg.time = bar3['time']
-                fvg.is_bullish = False
-                fvg.ce_price = (fvg.high + fvg.low) / 2
-                
-                # Check if this is the first FVG of the day
-                if session_started and not first_fvg_detected:
-                    fvg.is_first_of_day = True
-                    first_fvg_detected = True
-                    current_fvg = fvg
-                    debug(f"First Bearish FVG detected: {fvg.low:.2f} - {fvg.high:.2f} at {fvg.time}")
-                
-                daily_fvgs.append(fvg)
-                
-        except Exception as e:
-            debug(f"Error detecting FVG: {e}")
+            daily_fvgs.append(fvg)
+            return fvg  # Return the detected FVG
+            
+        # Check for bearish FVG: bar1.high < bar3.low
+        elif bar1['high'] < bar3['low']:
+            fvg = FairValueGap()
+            fvg.high = bar3['low']
+            fvg.low = bar1['high']
+            fvg.time = bar3['time']
+            fvg.is_bullish = False
+            fvg.ce_price = (fvg.high + fvg.low) / 2
+            
+            # Check if this is the first FVG of the day
+            if session_started and not first_fvg_detected:
+                fvg.is_first_of_day = True
+                first_fvg_detected = True
+                current_fvg = fvg
+                debug(f"First Bearish FVG detected: {fvg.low:.2f} - {fvg.high:.2f} at {fvg.time}")
+            
+            daily_fvgs.append(fvg)
+            return fvg  # Return the detected FVG
+            
+        return None  # No FVG detected
+        
+    except Exception as e:
+        debug(f"Error detecting FVG: {e}")
+        return None  # Return None on error
