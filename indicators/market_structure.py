@@ -1,3 +1,6 @@
+# region imports
+from AlgorithmImports import *
+# endregion
 from datetime import time
 
 
@@ -64,9 +67,9 @@ def CalculateORGLevels(current_org, debug):
 
 def DetectFVG(minute_bars, session_started, first_fvg_detected, current_fvg, daily_fvgs, debug):
     """Detect Fair Value Gaps using 3-candle pattern"""
-    if len(minute_bars) < 3:
-        return None  # Just add return None
-        
+    if len(minute_bars) < 3 or (session_started and first_fvg_detected):
+        return None  # Return None if already detected first FVG
+
     try:
         # Get last 3 bars
         bar1 = minute_bars[-3]  # 2 bars ago
@@ -82,15 +85,12 @@ def DetectFVG(minute_bars, session_started, first_fvg_detected, current_fvg, dai
             fvg.is_bullish = True
             fvg.ce_price = (fvg.high + fvg.low) / 2
             
-            # Check if this is the first FVG of the day
-            if session_started and not first_fvg_detected:
+            if session_started:
                 fvg.is_first_of_day = True
-                first_fvg_detected = True
-                current_fvg = fvg
                 debug(f"First Bullish FVG detected: {fvg.low:.2f} - {fvg.high:.2f} at {fvg.time}")
             
             daily_fvgs.append(fvg)
-            return fvg  # Return the detected FVG
+            return fvg
             
         # Check for bearish FVG: bar1.high < bar3.low
         elif bar1['high'] < bar3['low']:
@@ -101,18 +101,15 @@ def DetectFVG(minute_bars, session_started, first_fvg_detected, current_fvg, dai
             fvg.is_bullish = False
             fvg.ce_price = (fvg.high + fvg.low) / 2
             
-            # Check if this is the first FVG of the day
-            if session_started and not first_fvg_detected:
+            if session_started:
                 fvg.is_first_of_day = True
-                first_fvg_detected = True
-                current_fvg = fvg
                 debug(f"First Bearish FVG detected: {fvg.low:.2f} - {fvg.high:.2f} at {fvg.time}")
             
             daily_fvgs.append(fvg)
-            return fvg  # Return the detected FVG
+            return fvg
             
-        return None  # No FVG detected
+        return None
         
     except Exception as e:
         debug(f"Error detecting FVG: {e}")
-        return None  # Return None on error
+        return None
