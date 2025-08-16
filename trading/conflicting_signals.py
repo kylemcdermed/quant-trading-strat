@@ -1,6 +1,6 @@
-from trading.entry_logic import GetFVGStopLoss, GetFVGStopLossLevels
-
-
+# region imports
+from AlgorithmImports import *
+# endregion
 
 
 def HandleConflictingSignals(algorithm_instance, direction, entry_type, first_fvg, org_target):
@@ -81,13 +81,13 @@ def HandleConflictingSignals(algorithm_instance, direction, entry_type, first_fv
                 
                 # EXECUTE BUY LIMIT ORDER
                 quantity = 1  # For NQ futures, typically 1 contract
-                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq, quantity, entry_price)
+                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq.mapped, quantity, entry_price)
                 algorithm_instance.debug(f"BUY LIMIT order placed: {quantity} contracts at {entry_price}")
                 
                 # Set stop loss and take profit
                 if order_ticket:
-                    algorithm_instance.StopMarketOrder(algorithm_instance.nq, -quantity, stop_loss)
-                    algorithm_instance.LimitOrder(algorithm_instance.nq, -quantity, take_profit)
+                    algorithm_instance.StopMarketOrder(algorithm_instance.nq.mapped, -quantity, stop_loss)
+                    algorithm_instance.LimitOrder(algorithm_instance.nq.mapped, -quantity, take_profit)
                     algorithm_instance.debug(f"Stop Loss set at {stop_loss}, Take Profit at {take_profit}")
                     algorithm_instance.trade_taken_today = True
                 
@@ -121,13 +121,13 @@ def HandleConflictingSignals(algorithm_instance, direction, entry_type, first_fv
                 
                 # EXECUTE BUY LIMIT ORDER
                 quantity = 1  # For NQ futures, typically 1 contract
-                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq, quantity, entry_price)
+                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq.mapped, quantity, entry_price)
                 algorithm_instance.debug(f"BUY LIMIT order placed: {quantity} contracts at {entry_price}")
                 
                 # Set stop loss and take profit
                 if order_ticket:
-                    algorithm_instance.StopMarketOrder(algorithm_instance.nq, -quantity, stop_loss)
-                    algorithm_instance.LimitOrder(algorithm_instance.nq, -quantity, take_profit)
+                    algorithm_instance.StopMarketOrder(algorithm_instance.nq.mapped, -quantity, stop_loss)
+                    algorithm_instance.LimitOrder(algorithm_instance.nq.mapped, -quantity, take_profit)
                     algorithm_instance.debug(f"Stop Loss set at {stop_loss}, Take Profit at {take_profit}")
                     algorithm_instance.trade_taken_today = True
                 
@@ -197,13 +197,13 @@ def HandleConflictingSignals(algorithm_instance, direction, entry_type, first_fv
                 
                 # EXECUTE SELL LIMIT ORDER (SHORT)
                 quantity = 1  # For NQ futures, typically 1 contract
-                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq, -quantity, entry_price)
+                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq.mapped, -quantity, entry_price)
                 algorithm_instance.debug(f"SELL LIMIT order placed: {quantity} contracts at {entry_price}")
                 
                 # Set stop loss and take profit for SHORT
                 if order_ticket:
-                    algorithm_instance.StopMarketOrder(algorithm_instance.nq, quantity, stop_loss)
-                    algorithm_instance.LimitOrder(algorithm_instance.nq, quantity, take_profit)
+                    algorithm_instance.StopMarketOrder(algorithm_instance.nq.mapped, quantity, stop_loss)
+                    algorithm_instance.LimitOrder(algorithm_instance.nq.mapped, quantity, take_profit)
                     algorithm_instance.debug(f"Stop Loss set at {stop_loss}, Take Profit at {take_profit}")
                     algorithm_instance.trade_taken_today = True
                 
@@ -236,13 +236,13 @@ def HandleConflictingSignals(algorithm_instance, direction, entry_type, first_fv
                 
                 # EXECUTE SELL LIMIT ORDER (SHORT)
                 quantity = 1  # For NQ futures, typically 1 contract
-                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq, -quantity, entry_price)
+                order_ticket = algorithm_instance.LimitOrder(algorithm_instance.nq.mapped, -quantity, entry_price)
                 algorithm_instance.debug(f"SELL LIMIT order placed: {quantity} contracts at {entry_price}")
                 
                 # Set stop loss and take profit for SHORT
                 if order_ticket:
-                    algorithm_instance.StopMarketOrder(algorithm_instance.nq, quantity, stop_loss)
-                    algorithm_instance.LimitOrder(algorithm_instance.nq, quantity, take_profit)
+                    algorithm_instance.StopMarketOrder(algorithm_instance.nq.mapped, quantity, stop_loss)
+                    algorithm_instance.LimitOrder(algorithm_instance.nq.mapped, quantity, take_profit)
                     algorithm_instance.debug(f"Stop Loss set at {stop_loss}, Take Profit at {take_profit}")
                     algorithm_instance.trade_taken_today = True
                 
