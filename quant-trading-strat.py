@@ -18,7 +18,6 @@ from indicators.market_structure import OpenRangeGap, FairValueGap, DetectFVG, C
 from utils.helpers import StoreMinuteBar, IsMarketSession, CheckORGDirection, GetFirstFVG, GetORGTarget
 from trading.conflicting_signals import HandleConflictingSignals
 from trading.aligned_signals import HandleAlignedSignals
-from trading.entry_logic import GetFVGStopLoss, GetFVGStopLossLevels
 
 
 
@@ -94,26 +93,34 @@ class NQTradingStrategy(QCAlgorithm):
         # Store minute bar for FVG analysis
         StoreMinuteBar(current_bar, current_time, self.minute_bars, self.max_minute_bars)
         
-        # Detect FVG on new minute bars
+        # DEBUG: Check if we're in market session
         if IsMarketSession(current_time, self.market_open_time, self.market_close_time):
+            # DEBUG: Log every few minutes to see if this is running
+            if current_time.minute % 5 == 0:  # Every 5 minutes
+                self.debug(f"OnData running at {current_time}, Bars stored: {len(self.minute_bars)}, Session started: {self.session_started}")
+            
             detected_fvg = DetectFVG(self.minute_bars, self.session_started, self.first_fvg_detected, self.current_fvg, self.daily_fvgs, self.debug)
             
-            # If FVG was detected and it's the first one of the day
+            # If FVG was detected
             if detected_fvg is not None:
+                self.debug(f"FVG DETECTED! Type: {'Bullish' if detected_fvg.is_bullish else 'Bearish'}, Time: {detected_fvg.time}")
+                
                 # Check if this is the first FVG of the day
                 if self.session_started and not self.first_fvg_detected:
                     detected_fvg.is_first_of_day = True
                     self.first_fvg_detected = True
                     self.current_fvg = detected_fvg
-                    self.debug(f"First {'Bullish' if detected_fvg.is_bullish else 'Bearish'} FVG detected: {detected_fvg.low:.2f} - {detected_fvg.high:.2f} at {detected_fvg.time}")
+                    self.debug(f"FIRST FVG OF DAY DETECTED! Triggering trading logic...")
                     
-                    # **TRIGGER TRADING LOGIC** when first FVG is detected
+                    # TRIGGER TRADING LOGIC when first FVG is detected
                     if not self.trade_taken_today:
-                        self.debug("Triggering trading logic for first FVG...")
+                        self.debug("Calling TradingLogic()...")
                         self.TradingLogic()
-
+                    else:
+                        self.debug("Trade already taken today - skipping")
 
     def CaptureOpeningRange(self):
+        self.debug(f"CaptureOpeningRange called at {self.time}")
         """Capture the opening price for ORG calculation"""
         try:
             if self.nq.Mapped in self.securities:
@@ -135,7 +142,7 @@ class NQTradingStrategy(QCAlgorithm):
         """Capture the closing price for ORG calculation"""
         try:
             if self.nq.Mapped in self.securities:
-                current_price = self.securities[self.nq.Mapped].Price
+                current_price = self.securities[self.nq.Mapped].price
                 self.current_org.close_price = float(current_price)
                 self.current_org.close_time = self.time
                 
@@ -204,13 +211,13 @@ class NQTradingStrategy(QCAlgorithm):
             elif dnn_bias == 1 and org_direction == 1:
                 self.debug("ALIGNED BULLISH: DNN Bullish + ORG Bullish")
                 # TODO: Implement standard FVG entry logic
-                HandleConflictingSignals(self, direction=1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
+                HandleAlignedSignals(self, direction=1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
 
             # CONDITION 4: DNN BEARISH (-1) + ORG BEARISH (-1) = ALIGNED BEARISH
             elif dnn_bias == -1 and org_direction == -1:
                 self.debug("ALIGNED BEARISH: DNN Bearish + ORG Bearish") 
                 # TODO: Implement standard FVG entry logic
-                HandleConflictingSignals(self, direction=-1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
+                HandleAlignedSignals(self, direction=-1, entry_type="momentum", first_fvg=first_fvg, org_target=org_target)
 
             else:
                 self.debug("Unexpected condition - no trading logic triggered")
@@ -332,3 +339,80 @@ class NQTradingStrategy(QCAlgorithm):
             '''
         except Exception as e:
             self.debug(f"Error in CalculateDailyBias: {str(e)}")
+
+def GetFVGStopLossLevels(algorithm_instance, fvg_time):
+    """Get stop loss levels from the 3-candle FVG pattern"""
+    try:
+        if not algorithm_instance.minute_bars or len(algorithm_instance.minute_bars) < 3:
+            algorithm_instance.debug("Insufficient minute bars for stop loss calculation")
+            return None, None
+        
+        # Find the 3 candles that formed the FVG
+        fvg_candles = []
+        
+        # Look for the candles around the FVG time
+        for i in range(len(algorithm_instance.minute_bars) - 2):
+            if (algorithm_instance.minute_bars[i+2]['time'] == fvg_time or 
+                abs((algorithm_instance.minute_bars[i+2]['time'] - fvg_time).total_seconds()) < 60):
+                
+                # Found the FVG formation - get the 3 candles
+                fvg_candles = [
+                    algorithm_instance.minute_bars[i],     # Candle 1 (2 bars ago)
+                    algorithm_instance.minute_bars[i+1],   # Candle 2 (1 bar ago)
+                    algorithm_instance.minute_bars[i+2]    # Candle 3 (current when FVG formed)
+                ]
+                break
+        
+        if len(fvg_candles) != 3:
+            algorithm_instance.debug("Could not find the 3 candles that formed the FVG")
+            return None, None
+        
+        # Get all highs and lows from the 3 candles
+        all_highs = [candle['high'] for candle in fvg_candles]
+        all_lows = [candle['low'] for candle in fvg_candles]
+        
+        # Find the extreme levels
+        highest_price = max(all_highs)
+        lowest_price = min(all_lows)
+        
+        algorithm_instance.debug(f"FVG Stop Loss Levels - Highest: {highest_price:.2f}, Lowest: {lowest_price:.2f}")
+        algorithm_instance.debug(f"Candle Details:")
+        for i, candle in enumerate(fvg_candles, 1):
+            algorithm_instance.debug(f"  Candle {i}: H:{candle['high']:.2f} L:{candle['low']:.2f} O:{candle['open']:.2f} C:{candle['close']:.2f}")
+        
+        return highest_price, lowest_price
+        
+    except Exception as e:
+        algorithm_instance.debug(f"Error calculating FVG stop loss levels: {e}")
+        return None, None
+
+def GetFVGStopLoss(algorithm_instance, fvg_object, trade_direction):
+    """Get the appropriate stop loss for a trade based on FVG and trade direction"""
+    try:
+        if fvg_object is None:
+            algorithm_instance.debug("No FVG object provided for stop loss calculation")
+            return None
+        
+        # Get the extreme levels from the FVG formation
+        highest_price, lowest_price = GetFVGStopLossLevels(algorithm_instance, fvg_object.time)
+        
+        if highest_price is None or lowest_price is None:
+            algorithm_instance.debug("Could not determine FVG stop loss levels")
+            return None
+        
+        # Determine stop loss based on trade direction
+        if trade_direction == 1:  # Long trade
+            stop_loss = lowest_price
+            algorithm_instance.debug(f"Long trade stop loss: {stop_loss:.2f} (lowest of 3 FVG candles)")
+        elif trade_direction == -1:  # Short trade
+            stop_loss = highest_price
+            algorithm_instance.debug(f"Short trade stop loss: {stop_loss:.2f} (highest of 3 FVG candles)")
+        else:
+            algorithm_instance.debug("Invalid trade direction for stop loss calculation")
+            return None
+        
+        return stop_loss
+        
+    except Exception as e:
+        algorithm_instance.debug(f"Error getting FVG stop loss: {e}")
+        return None
