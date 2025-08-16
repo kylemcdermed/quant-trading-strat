@@ -84,10 +84,10 @@ class NQTradingStrategy(QCAlgorithm):
 
 
     def OnData(self, data):
-        if self.nq.Mapped not in data.Bars:
+        if self.nq.mapped not in data.Bars:
             return
             
-        current_bar = data.Bars[self.nq.Mapped]
+        current_bar = data.Bars[self.nq.mapped]
         current_time = self.time
         
         # Store minute bar for FVG analysis
@@ -123,8 +123,8 @@ class NQTradingStrategy(QCAlgorithm):
         self.debug(f"CaptureOpeningRange called at {self.time}")
         """Capture the opening price for ORG calculation"""
         try:
-            if self.nq.Mapped in self.securities:
-                current_price = self.securities[self.nq.Mapped].price
+            if self.nq.mapped in self.securities:
+                current_price = self.securities[self.nq.mapped].price
                 self.current_org.open_price = float(current_price)
                 self.current_org.open_time = self.time
                 self.session_started = True
@@ -141,8 +141,8 @@ class NQTradingStrategy(QCAlgorithm):
     def CaptureClosingPrice(self):
         """Capture the closing price for ORG calculation"""
         try:
-            if self.nq.Mapped in self.securities:
-                current_price = self.securities[self.nq.Mapped].price
+            if self.nq.mapped in self.securities:
+                current_price = self.securities[self.nq.mapped].price
                 self.current_org.close_price = float(current_price)
                 self.current_org.close_time = self.time
                 
