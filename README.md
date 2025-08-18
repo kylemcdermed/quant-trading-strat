@@ -30,13 +30,13 @@ The goal is to build scalable, systematic strategies that can transition from pr
 bash
 Copy
 Edit
-├── strategies/        # Trading strategy implementations  
-├── research/          # Jupyter notebooks & data analysis  
-├── nlp_signals/       # Macroeconomic news sentiment models  
-├── data/              # Data handling & preprocessing  
-├── backtests/         # QuantConnect + custom backtesting results  
-├── screenshots/       # Strategy setup & execution screenshots  
-└── README.md          # Project documentation
+├── indicators/        
+├── models/           
+├── trading/         
+├── utils/               
+├── backtests/           
+├── screenshots/      
+└── README.md          
 🚀 Getting Started
 Prerequisites
 Python 3.10+
@@ -51,8 +51,8 @@ Installation
 bash
 Copy
 Edit
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-cd YOUR_REPO_NAME
+git clone https://github.com/kylemcdermed/quant-trading-strat.git
+cd quant-trading-strat
 pip install -r requirements.txt
 📊 Example Screenshots
 Discretionary Trading Setup:
