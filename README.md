@@ -27,16 +27,15 @@ The goal is to build scalable, systematic strategies that can transition from pr
 🧮 Quant Research: Risk-adjusted metrics (Sharpe, Calmar, Sortino, etc.)
 
 📂 Repository Structure
-bash
-Copy
-Edit
+
 ├── indicators/        
 ├── models/           
 ├── trading/         
 ├── utils/               
 ├── backtests/           
 ├── screenshots/      
-└── README.md          
+└── README.md   
+
 🚀 Getting Started
 Prerequisites
 Python 3.10+
